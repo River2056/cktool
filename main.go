@@ -148,8 +148,6 @@ func findLogsByRecentGitTags(repoLocation string) {
 		line, err = reader.ReadString('\n')
 	}
 
-	// discard endTag commit
-	// commitIds = commitIds[:len(commitIds)-1]
 	color.HiMagenta("commitIds to pick: %v\n", color.HiCyanString("%v", commitIds))
 	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
