@@ -16,6 +16,15 @@ import (
 	"github.com/fatih/color"
 )
 
+type Config struct {
+	Path        string
+	StartingTag string
+	EndingTag   string
+	Count       int
+}
+
+var config *Config = &Config{}
+
 func contains(s string, sarr []string) bool {
 	for _, v := range sarr {
 		if s == v {
@@ -110,8 +119,8 @@ func sortTags(tags []string) {
 	})
 }
 
-func findLogsByRecentGitTags(repoLocation string) {
-	reader := getGitLogs(repoLocation)
+func findLogsByRecentGitTags(config *Config) {
+	reader := getGitLogs(config.Path)
 	line, err := reader.ReadString('\n')
 
 	tagIds := make([]string, 0)
@@ -154,10 +163,12 @@ func findLogsByRecentGitTags(repoLocation string) {
 	captureLogMessages(commitIds)
 }
 
-func findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag string) {
-	reader := getGitLogs(repoLocation)
+func findLogsByStartingAndEndingTags(config *Config) {
+	reader := getGitLogs(config.Path)
 	line, err := reader.ReadString('\n')
 
+	count := config.Count // default will be -1
+	tagIds := make([]string, 0)
 	commitIds := make([]string, 0)
 	startPicking := false
 	for err == nil {
@@ -169,9 +180,60 @@ func findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag string
 
 		if len(tagContent) > 0 {
 			tagIdsArr := strings.Split(tagContent, "\n")
-			if contains(startingTag, tagIdsArr) {
+			if len(tagIdsArr) > 1 {
+				sortTags(tagIdsArr)
+			}
+			tag := tagIdsArr[0]
+			if contains(config.StartingTag, tagIdsArr) {
 				startPicking = true
-			} else if contains(endingTag, tagIdsArr) {
+				tag = config.StartingTag
+			} else if contains(config.EndingTag, tagIdsArr) || count == 0 {
+				break
+			}
+
+			tagIds = append(tagIds, tag)
+			count--
+		}
+
+		if startPicking && count != 0 {
+			commitIds = append(commitIds, commitId)
+		}
+
+		line, err = reader.ReadString('\n')
+	}
+
+	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
+	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
+
+	captureLogMessages(commitIds)
+}
+
+func findLogsByTagCount(config *Config) {
+	reader := getGitLogs(config.Path)
+	line, err := reader.ReadString('\n')
+
+	count := config.Count
+	tagIds := make([]string, 0)
+	commitIds := make([]string, 0)
+	startPicking := false
+	for err == nil {
+		commitId := strings.Split(line, " ")[0]
+
+		tagCmd := exec.Command("git", "tag", "--points-at", commitId)
+		tagBytes, _ := tagCmd.Output()
+		tagContent := strings.TrimSpace(string(tagBytes))
+
+		if len(tagContent) > 0 {
+			startPicking = true
+			tagIdsArr := strings.Split(tagContent, "\n")
+			if len(tagIdsArr) > 1 {
+				sortTags(tagIdsArr)
+			}
+			tag := tagIdsArr[0]
+			tagIds = append(tagIds, tag)
+			count--
+
+			if count == 0 {
 				break
 			}
 		}
@@ -184,33 +246,27 @@ func findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag string
 	}
 
 	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
-	color.HiMagenta("tag ids from new to old: %v, %v\n", color.HiCyanString("%v", startingTag), color.HiGreenString("%v", endingTag))
+	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
 	captureLogMessages(commitIds)
 }
 
 func main() {
-	// logCmd := "git log --oneline"
-	// mainCmd := "git log --simplify-by-decoration --decorate=short --oneline %v..%v"
-	// git log --tags --simplify-by-decoration --decorate=full
-	// git log --oneline | awk '{print $1}'
-	// fetchLogCmd := exec.Command("git", "log", "--oneline", "--tags", "--simplify-by-decoration", "--decorate=full", fmt.Sprintf("%s..%s", startTag, endTag))
-
 	projectPath := flag.String("path", "", "project path")
 	startTag := flag.String("start", "", "starting repo git tag")
 	endTag := flag.String("end", "", "ending repo git tag")
+	count := flag.Int("tag-count", -1, "tag count; e.g. -tag-count 3 ; will include 3 tags counting from the first tag")
 	flag.Parse()
-
-	repoLocation := ""
 
 	if *projectPath == "" {
 		fmt.Println("please provide project path!")
 		os.Exit(1)
 	}
 
-	repoLocation = *projectPath
-	startingTag := *startTag
-	endingTag := *endTag
+	config.Path = *projectPath
+	config.StartingTag = *startTag
+	config.EndingTag = *endTag
+	config.Count = *count
 	// recursive function to look for project
 	/* if *projectPath != "" {
 		repoLocation = *projectPath
@@ -220,9 +276,11 @@ func main() {
 		findRepoLocation(currentDir, &repoLocation, visited)
 	} */
 
-	if startingTag == "" && endingTag == "" {
-		findLogsByRecentGitTags(repoLocation)
+	if config.StartingTag == "" && config.EndingTag == "" && config.Count == -1 {
+		findLogsByRecentGitTags(config)
+	} else if config.StartingTag != "" && config.EndingTag != "" {
+		findLogsByStartingAndEndingTags(config)
 	} else {
-		findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag)
+		findLogsByTagCount(config)
 	}
 }
