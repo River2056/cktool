@@ -116,17 +116,13 @@ func findLogsByRecentGitTags(repoLocation string) {
 
 	tagIds := make([]string, 0)
 	commitIds := make([]string, 0)
-readStream:
+	startPicking := false
 	for err == nil {
 		commitId := strings.Split(line, " ")[0]
 
 		tagCmd := exec.Command("git", "tag", "--points-at", commitId)
 		tagBytes, _ := tagCmd.Output()
 		tagContent := strings.TrimSpace(string(tagBytes))
-
-		if len(tagContent) > 0 || len(commitIds) > 0 {
-			commitIds = append(commitIds, commitId)
-		}
 
 		if len(tagContent) > 0 {
 			tagIdsArr := strings.Split(tagContent, "\n")
@@ -137,18 +133,23 @@ readStream:
 			tagIdFirst := tagIdsArr[0]
 			if !contains(tagIdFirst, tagIds) {
 				tagIds = append(tagIds, tagIdFirst)
+				startPicking = true
 			}
-
 		}
-		line, err = reader.ReadString('\n')
 
 		if len(tagIds) > 1 {
-			break readStream
+			break
 		}
+
+		if startPicking {
+			commitIds = append(commitIds, commitId)
+		}
+
+		line, err = reader.ReadString('\n')
 	}
 
 	// discard endTag commit
-	commitIds = commitIds[:len(commitIds)-1]
+	// commitIds = commitIds[:len(commitIds)-1]
 	color.HiMagenta("commitIds to pick: %v\n", color.HiCyanString("%v", commitIds))
 	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
