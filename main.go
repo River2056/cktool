@@ -183,8 +183,8 @@ func findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag string
 		line, err = reader.ReadString('\n')
 	}
 
-	color.HiMagenta("commit ids to pick: %v\n", color.HiGreenString("%v", commitIds))
-	color.HiMagenta("tag ids from new to old: %v, %v\n", color.HiGreenString("%v", startingTag), color.HiGreenString("%v", endingTag))
+	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
+	color.HiMagenta("tag ids from new to old: %v, %v\n", color.HiCyanString("%v", startingTag), color.HiGreenString("%v", endingTag))
 
 	captureLogMessages(commitIds)
 }
