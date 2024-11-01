@@ -100,6 +100,16 @@ func captureLogMessages(commitIds []string) {
 	color.HiGreen(strings.Join(builder, "\n"))
 }
 
+func sortTags(tags []string) {
+	sort.Slice(tags, func(i, j int) bool {
+		idArrA := strings.Split(tags[i], "-")
+		idArrB := strings.Split(tags[j], "-")
+		timestampA, _ := strconv.Atoi(idArrA[len(idArrA)-1])
+		timestampB, _ := strconv.Atoi(idArrB[len(idArrB)-1])
+		return timestampA > timestampB
+	})
+}
+
 func findLogsByRecentGitTags(repoLocation string) {
 	reader := getGitLogs(repoLocation)
 	line, err := reader.ReadString('\n')
@@ -121,13 +131,7 @@ readStream:
 		if len(tagContent) > 0 {
 			tagIdsArr := strings.Split(tagContent, "\n")
 			if len(tagIdsArr) >= 2 {
-				sort.Slice(tagIdsArr, func(i, j int) bool {
-					idArrA := strings.Split(tagIdsArr[i], "-")
-					idArrB := strings.Split(tagIdsArr[j], "-")
-					timestampA, _ := strconv.Atoi(idArrA[len(idArrA)-1])
-					timestampB, _ := strconv.Atoi(idArrB[len(idArrB)-1])
-					return timestampA > timestampB
-				})
+				sortTags(tagIdsArr)
 			}
 
 			tagIdFirst := tagIdsArr[0]
@@ -151,21 +155,39 @@ readStream:
 	captureLogMessages(commitIds)
 }
 
-// work in progress...
 func findLogsByStartingAndEndingTags(repoLocation, startingTag, endingTag string) {
-	/* reader := getGitLogs(repoLocation)
-		line, err := reader.ReadString('\n')
+	reader := getGitLogs(repoLocation)
+	line, err := reader.ReadString('\n')
 
-		tagIds := make([]string, 0)
-		commitIds := make([]string, 0)
-	readStream:
-		for err == nil {
-			commitId := strings.Split(line, " ")[0]
+	commitIds := make([]string, 0)
+	startPicking := false
+	for err == nil {
+		commitId := strings.Split(line, " ")[0]
 
-			tagCmd := exec.Command("git", "tag", "--points-at", commitId)
-			tagBytes, _ := tagCmd.Output()
-			tagContent := strings.TrimSpace(string(tagBytes))
-		} */
+		tagCmd := exec.Command("git", "tag", "--points-at", commitId)
+		tagBytes, _ := tagCmd.Output()
+		tagContent := strings.TrimSpace(string(tagBytes))
+
+		if len(tagContent) > 0 {
+			tagIdsArr := strings.Split(tagContent, "\n")
+			if contains(startingTag, tagIdsArr) {
+				startPicking = true
+			} else if contains(endingTag, tagIdsArr) {
+				break
+			}
+		}
+
+		if startPicking {
+			commitIds = append(commitIds, commitId)
+		}
+
+		line, err = reader.ReadString('\n')
+	}
+
+	color.HiMagenta("commit ids to pick: %v\n", color.HiGreenString("%v", commitIds))
+	color.HiMagenta("tag ids from new to old: %v, %v\n", color.HiGreenString("%v", startingTag), color.HiGreenString("%v", endingTag))
+
+	captureLogMessages(commitIds)
 }
 
 func main() {
