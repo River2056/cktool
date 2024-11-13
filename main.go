@@ -90,7 +90,8 @@ func getGitLogs(repoLocation string) *bufio.Reader {
 
 func captureLogMessages(commitIds []string) {
 	builder := make([]string, 0)
-	re, _ := regexp.Compile(`^#\d+|^U-\d+|\(.*\) #\d+`)
+	// re, _ := regexp.Compile(`^#\d+|^U-\d+|\(.*\) #\d+`)
+	re, _ := regexp.Compile(`(#\d+|^U-\d+|\(.*\) #\d+)`)
 	for _, commitId := range commitIds {
 		logBytes, _ := exec.Command("git", "show", "--quiet", commitId).Output()
 		log := strings.TrimSpace(string(logBytes))
