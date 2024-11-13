@@ -2,7 +2,7 @@ name="aibank-ms"
 
 build:
 	go build
-	./cktool -path "/Users/kevintung/code/$(name)"
+	./cktool -path "/Users/kevintung/code/$(name)" -branch "$(branch)"
 
 build_param:
 	go build 

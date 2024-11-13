@@ -253,6 +253,7 @@ func findLogsByTagCount(config *Config) {
 
 func main() {
 	projectPath := flag.String("path", "", "project path")
+	branchInput := flag.String("branch", "", "branch to use")
 	startTag := flag.String("start", "", "starting repo git tag")
 	endTag := flag.String("end", "", "ending repo git tag")
 	count := flag.Int("tag-count", -1, "tag count; e.g. -tag-count 3 ; will include 3 tags counting from the first tag")
@@ -275,6 +276,27 @@ func main() {
 		visited := make(map[string]bool)
 		findRepoLocation(currentDir, &repoLocation, visited)
 	} */
+
+	_ = os.Chdir(*projectPath)
+	gitBranchCmd := exec.Command("git", "branch", "--show-current")
+	branch, err := gitBranchCmd.Output()
+	if err != nil {
+		panic(err)
+	}
+
+	color.HiMagenta("current branch: %v", color.HiCyanString("%s", branch))
+
+	if *branchInput != "" {
+		color.HiMagenta("switching to branch: %v", color.HiCyanString("%v", *branchInput))
+		switchBranchCmd := exec.Command("git", "switch", *branchInput)
+		err := switchBranchCmd.Run()
+		if err != nil {
+			color.HiRed("error: %v", err)
+			color.HiRed("branch switch %v failed, skip...", color.HiCyanString("%v", *branchInput))
+		}
+		branch, _ = exec.Command("git", "branch", "--show-current").Output()
+		color.HiMagenta("switched to branch: %s", color.HiCyanString("%s", branch))
+	}
 
 	if config.StartingTag == "" && config.EndingTag == "" && config.Count == -1 {
 		findLogsByRecentGitTags(config)
