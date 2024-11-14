@@ -21,6 +21,7 @@ type Config struct {
 	StartingTag string
 	EndingTag   string
 	Count       int
+	Find        string
 }
 
 var config *Config = &Config{}
@@ -88,10 +89,10 @@ func getGitLogs(repoLocation string) *bufio.Reader {
 	return bufio.NewReader(pipe)
 }
 
-func captureLogMessages(commitIds []string) {
+func captureLogMessages(commitIds []string, specificLog string) {
 	builder := make([]string, 0)
 	// re, _ := regexp.Compile(`^#\d+|^U-\d+|\(.*\) #\d+`)
-	re, _ := regexp.Compile(`(#\d+|^U-\d+|\(.*\) #\d+)`)
+	re := regexp.MustCompile(`(#\d+|^U-\d+|\(.*\) #\d+)`)
 	for _, commitId := range commitIds {
 		logBytes, _ := exec.Command("git", "show", "--quiet", commitId).Output()
 		log := strings.TrimSpace(string(logBytes))
@@ -107,7 +108,24 @@ func captureLogMessages(commitIds []string) {
 		}
 	}
 
-	color.HiGreen(strings.Join(builder, "\n"))
+	findL := regexp.MustCompile(specificLog)
+	hasFound := false
+	for _, line := range builder {
+		if specificLog != "" && findL.Match([]byte(line)) {
+			color.HiRed("-----> %s", line)
+			hasFound = true
+		} else {
+			color.HiGreen(line)
+		}
+	}
+
+	if specificLog != "" {
+		if !hasFound {
+			color.HiRed("specific log message %s not found!", specificLog)
+		} else {
+			color.HiCyan("specific log message %s found", specificLog)
+		}
+	}
 }
 
 func sortTags(tags []string) {
@@ -161,7 +179,7 @@ func findLogsByRecentGitTags(config *Config) {
 	color.HiMagenta("commitIds to pick: %v\n", color.HiCyanString("%v", commitIds))
 	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
-	captureLogMessages(commitIds)
+	captureLogMessages(commitIds, config.Find)
 }
 
 func findLogsByStartingAndEndingTags(config *Config) {
@@ -206,7 +224,7 @@ func findLogsByStartingAndEndingTags(config *Config) {
 	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
 	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
-	captureLogMessages(commitIds)
+	captureLogMessages(commitIds, config.Find)
 }
 
 func findLogsByTagCount(config *Config) {
@@ -249,7 +267,48 @@ func findLogsByTagCount(config *Config) {
 	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
 	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
 
-	captureLogMessages(commitIds)
+	captureLogMessages(commitIds, config.Find)
+}
+
+func findLogsWithinDeploymentTag(config *Config) {
+	reader := getGitLogs(config.Path)
+	line, err := reader.ReadString('\n')
+
+	tagIds := make([]string, 0)
+	commitIds := make([]string, 0)
+	startPicking := false
+	for err == nil {
+
+		commitId := strings.Split(line, " ")[0]
+
+		tagCmd := exec.Command("git", "tag", "--points-at", commitId)
+		tagBytes, _ := tagCmd.Output()
+		tagContent := strings.TrimSpace(string(tagBytes))
+
+		if len(tagContent) > 0 {
+			startPicking = true
+			tagIdsArr := strings.Split(tagContent, "\n")
+			if len(tagIdsArr) > 1 {
+				sortTags(tagIdsArr)
+			}
+			if contains(config.EndingTag, tagIdsArr) {
+				break
+			}
+			tag := tagIdsArr[0]
+			tagIds = append(tagIds, tag)
+		}
+
+		if startPicking {
+			commitIds = append(commitIds, commitId)
+		}
+
+		line, err = reader.ReadString('\n')
+	}
+
+	color.HiMagenta("commit ids to pick: %v\n", color.HiCyanString("%v", commitIds))
+	color.HiMagenta("tag ids from new to old: %v\n", color.HiCyanString("%v", tagIds))
+
+	captureLogMessages(commitIds, config.Find)
 }
 
 func main() {
@@ -258,6 +317,7 @@ func main() {
 	startTag := flag.String("start", "", "starting repo git tag")
 	endTag := flag.String("end", "", "ending repo git tag")
 	count := flag.Int("tag-count", -1, "tag count; e.g. -tag-count 3 ; will include 3 tags counting from the first tag")
+	find := flag.String("find", "", "log message to find")
 	flag.Parse()
 
 	if *projectPath == "" {
@@ -269,6 +329,7 @@ func main() {
 	config.StartingTag = *startTag
 	config.EndingTag = *endTag
 	config.Count = *count
+	config.Find = *find
 	// recursive function to look for project
 	/* if *projectPath != "" {
 		repoLocation = *projectPath
@@ -299,10 +360,14 @@ func main() {
 		color.HiMagenta("switched to branch: %s", color.HiCyanString("%s", branch))
 	}
 
+	exec.Command("git", "fetch", "origin", string(branch)).Run()
+
 	if config.StartingTag == "" && config.EndingTag == "" && config.Count == -1 {
 		findLogsByRecentGitTags(config)
 	} else if config.StartingTag != "" && config.EndingTag != "" {
 		findLogsByStartingAndEndingTags(config)
+	} else if config.Find != "" && config.EndingTag != "" {
+		findLogsWithinDeploymentTag(config)
 	} else {
 		findLogsByTagCount(config)
 	}

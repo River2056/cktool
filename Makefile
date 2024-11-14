@@ -17,3 +17,13 @@ build_target_linux:
 
 build_target_darwin:
 	GOOS=darwin GOARCH=arm64 go build -o cktool main.go
+
+build_all:
+	if [[ ! -d ./macos ]]; then mkdir macos; fi
+	if [[ ! -d ./windows ]]; then mkdir windows; fi
+	if [[ ! -d ./linux ]]; then mkdir linux; fi
+	GOOS=linux GOARCH=amd64 go build -o cktool main.go && mv ./cktool ./linux/
+	GOOS=darwin GOARCH=arm64 go build -o cktool main.go && mv ./cktool ./macos/
+	GOOS=windows GOARCH=amd64 go build -o cktool main.go && mv ./cktool ./windows/
+
+
