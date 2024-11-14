@@ -18,3 +18,5 @@ this tool will fetch every commit message in between starting tag and ending tag
     - usually just the build, build_param, build_count rule
 3. either run `go install` or run the make rule: `make build_target_linux` or `make build_target_darwin` according to your platform
 4. use the `-h` flag to check cli tool usage
+
+Or you could just use prebuit binaries in this repository, just remember to add `cktool` to your `PATH`
